@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://mrm-p1-oauth-2026.eidolonye.workers.dev; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>MRM P1 独立环境诊断 v2</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f5f7fb;color:#12243d;margin:0;padding:22px}
+main{max-width:760px;margin:0 auto;background:white;padding:24px;border:1px solid #d8e2ee;border-radius:14px}
+h1{font-size:23px;margin:0 0 10px}p{line-height:1.55}.hint{color:#536479;font-size:14px}
+a{color:#155bb7}.item{padding:11px 0;border-bottom:1px solid #e7edf4;display:flex;gap:12px;align-items:baseline}
+.ind{min-width:60px;font-weight:700}.pass{color:#187548}.fail{color:#b42318}.busy{color:#706025}
+small{display:block;color:#52657c;margin-top:3px;overflow-wrap:anywhere}#summary{font-weight:700;margin:15px 0}
+button{padding:11px 16px;background:#164fa3;border:0;border-radius:7px;color:white;cursor:pointer;font-weight:650}
+</style>
+</head>
+<body><main>
+<h1>MRM Next · P1 隔离环境诊断 v2</h1>
+<p class="hint">只读取公开的 Staging 静态文件，并发送无效的合成请求验证 OAuth Worker 的 CORS／输入拒绝。不会登录 GitHub、读取 Token、改动项目或存储数据。此页本身不是最终 OAuth / P1 UAT。</p>
+<p>Staging Origin: <code id="origin"></code></p>
+<div id="summary" aria-live="polite">准备检测…</div>
+<div id="results" aria-live="polite"></div>
+<p><button id="run" type="button">重新检测</button> &nbsp; <a href="/">返回 MRM P1 测试应用</a></p>
+<p class="hint">PASS 仅代表本页所列检查通过；GitHub OAuth 授权、合成私库读写、双设备一致性、P1-07 仍须单独验收。不要输入任何生产密码，也不要导入 65LA 数据。</p>
+<script>
+const expectedOrigin='https://mrm-p1-lab-2026.github.io';
+const worker='https://mrm-p1-oauth-2026.eidolonye.workers.dev/exchange';
+const expectedHash='dec17517e1e27180ec67241cee1d47f32cadca756d94528ed0c7f04ff6ef134c';
+const results=document.querySelector('#results'),sum=document.querySelector('#summary');
+const evidenceVersion='P1-DIAG-V2-20261025-hash-display';
+document.querySelector('#origin').textContent=location.origin;
+let passed=0,failed=0;
+function add(name,ok,detail){
+ const row=document.createElement('div');row.className='item';
+ const badge=document.createElement('span');badge.className='ind '+(ok?'pass':'fail');badge.textContent=ok?'PASS':'FAIL';
+ const box=document.createElement('span');box.textContent=name;
+ const info=document.createElement('small');info.textContent=String(detail||'');box.append(info);row.append(badge,box);results.append(row);
+ ok?passed++:failed++;
+ sum.textContent='PASS '+passed+' / FAIL '+failed+'（仅诊断，不是 P1 最终验收）';
+}
+const status=(r)=>'HTTP '+r.status;
+async function run(){
+ passed=0;failed=0;results.replaceChildren();sum.textContent='正在运行不含凭据的检查…';
+ add('页面域名隔离',location.origin===expectedOrigin,location.origin);
+ let src='';
+ try{
+  const r=await fetch('/index.html?p1-check=1',{cache:'no-store'});
+  const raw=await r.arrayBuffer();
+  const bytes=new Uint8Array(raw);
+  src=new TextDecoder().decode(bytes);
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  const sha=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+  add('Staging index.html + 精确版本哈希',r.ok && sha===expectedHash,status(r)+' · actual: '+sha+' · expected: '+expectedHash+' · diag: '+evidenceVersion);
+ }catch(e){add('Staging HTML / 版本哈希',false,String(e))}
+ try{
+  const found=src.match(/window\.MRM_S5_BUILD=Object\.freeze\((\{[^\n]+\})\);/);
+  const c=JSON.parse(found&&found[1]);
+  const g=c.github||{};
+  const ok=c.channel==='p1-synthetic'&&c.noGist===true&&c.emulator===false&&g.exchangeUrl===worker&&g.allowedOrigins.includes(expectedOrigin)&&g.dataRepo.owner==='mrm-p1-lab-2026'&&g.dataRepo.repo==='mrm-p1-data';
+  add('冻结页面中的 P1 合成隔离配置',ok,ok?'noGist=true · emulator=false · 仅 mrm-p1-data':'P1 配置缺失或不一致');
+ }catch(e){add('P1 合成隔离配置',false,String(e))}
+ for (const [label,path] of [['构建信息','/BUILD_INFO.json'],['CSS','/assets/app.css'],['Service Worker','/sw.js'],['GitHub 测试依赖','/vendor/Sortable.min.js']]){
+  try {const r=await fetch(path+'?p1-check=1',{cache:'no-store'});add(label,r.ok,status(r)+' · '+r.headers.get('content-type'))}
+  catch(e){add(label,false,String(e))}
+ }
+ try{
+  const r=await fetch(worker,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',cache:'no-store',credentials:'omit'});
+  const v=await r.json();
+  add('Worker CORS 预检 + 无效 code 拒绝',r.status===400&&v.error==='invalid code',status(r)+' · '+String(v.error).slice(0,80));
+ }catch(e){add('Worker CORS / 无效 code',false,String(e))}
+ try{
+  const r=await fetch(worker,{method:'GET',cache:'no-store',credentials:'omit'});
+  const v=await r.json();
+  add('Worker 仅允许 POST',r.status===405&&v.error==='POST only',status(r)+' · '+String(v.error).slice(0,80));
+ }catch(e){add('Worker 方法限制',false,String(e))}
+ sum.textContent='完成：PASS '+passed+' / FAIL '+failed+'（仅诊断，不是 P1 最终验收）';
+}
+document.querySelector('#run').addEventListener('click',run);
+run();
+</script>
+</main></body></html>
