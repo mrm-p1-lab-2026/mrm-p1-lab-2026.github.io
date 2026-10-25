@@ -1,0 +1,37 @@
+{
+ "profile": "next",
+ "coreSha256": "3d1283ea0cd6c07836ab94be5a5a057cd63ce505bd081a0135aeb7927c7f0799",
+ "sourceR2Sha256": "7fe3ca0a2c5eaabbd6e320bc0065e11dbf1093e7a7bdda658434a27835d31b31",
+ "pinned": {
+  "fake-indexeddb": "6.0.0",
+  "jsdom": "22.1.0",
+  "sortablejs": "1.15.2",
+  "tailwindcss": "3.4.17",
+  "xlsx": "0.18.5"
+ },
+ "files": {
+  "assets/app.css": "340d5bff94be65c4dae5dbc7a812edcdef9ed227101f116438212ddc94e9d2b9",
+  "assets/fonts.css": "179019289b0e1fe1e0a150048e52b55fd3965a02e4fb6efd5a406eaa13d04019",
+  "assets/fonts/LICENSES/LICENSE-Inter-OFL.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
+  "assets/fonts/LICENSES/LICENSE-JetBrainsMono-OFL.txt": "403581b69dac5cff4079205e01c6b467e56af449ecbd7247693ddb1baafa005b",
+  "assets/fonts/inter-cyrillic-ext.woff2": "ca157063339ac4ad418f214f3abfed119b0798ab4d377386ce5c9e5a7a435ebd",
+  "assets/fonts/inter-cyrillic.woff2": "71d5ee93cc1e9f1d520a3a8b66456de18c7879d8df09d57fcd2eaff75fef0075",
+  "assets/fonts/inter-greek-ext.woff2": "6e9e020a25f9b56d418f2c085b1d3c09725a4da23fe693a5b463064606732190",
+  "assets/fonts/inter-greek.woff2": "1be3448e292fbf05ffe176fe1e43f135013d50b1e7d324ad1a558f623d3bb6f6",
+  "assets/fonts/inter-latin-ext.woff2": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+  "assets/fonts/inter-latin.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+  "assets/fonts/inter-vietnamese.woff2": "5c66f9e07e90c6d4ac4922cc68d60de26c17b1858e677fb5e603fce3952b3ff2",
+  "assets/fonts/jetbrains-mono-cyrillic-ext.woff2": "62213be8a78b42f1e29d1452d91e2f8b3e745572a9dd98d3941e39fa00b37d76",
+  "assets/fonts/jetbrains-mono-cyrillic.woff2": "e17cfd15fb96909d64095015f958207063a0c07191da3512df7d560a781aebdf",
+  "assets/fonts/jetbrains-mono-greek.woff2": "0a557721b1f8b36d3f3f84442689a71ca4a744300abcb46a1953f51bfc663b66",
+  "assets/fonts/jetbrains-mono-latin-ext.woff2": "db5ff4db83e580426280e9337a58dc57d3a83784a1b03ad80914651594441d52",
+  "assets/fonts/jetbrains-mono-latin.woff2": "83c005d49d8a6a50474c73a5a36ac0468076e9c4a29da7bdb14995d80560a5be",
+  "assets/fonts/jetbrains-mono-vietnamese.woff2": "c89b9cc0bc6262bd4f8d8494b6961601f3aefa829d08c2e3635f4d501d3a47c2",
+  "index.html": "f6505eae48ceeb294c5e4b55f8e834c10898dd6c12e1cf5f4b5e0a858ddd858f",
+  "sw.js": "575965b230ad51a40e5bbe30a3c42eaab343eefcf77829f866c33e4303adb885",
+  "vendor/LICENSES/sortablejs.LICENSE.txt": "e94dfc31e800d169257569db270457c9f028440c9ccae41e7eb78b2db18f1298",
+  "vendor/LICENSES/xlsx.LICENSE.txt": "4d2a38ac35cda06a555c84074a819d413339cd3691b822cae50f8f322fe01f64",
+  "vendor/Sortable.min.js": "ca68430703c4f5960e90735867c6e94d29b5a3de37107d8100e5a301007e9e6e",
+  "vendor/xlsx.full.min.js": "c9506197caf809a075b6dee1da0d36fb19da7158ffe8a88e7b0c96c5d8623c99"
+ }
+}
