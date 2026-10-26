@@ -1,0 +1,137 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>MRM P1-07 / Real Two Tabs · Synthetic QA</title><style>body{font:15px system-ui,Arial,sans-serif;background:#f5f7fb;color:#132139;margin:0}.card{max-width:790px;margin:40px auto;background:#fff;padding:26px;border-radius:14px;border:1px solid #dae2f0;box-sizing:border-box}button{padding:12px 19px;border:0;background:#2354c6;color:white;border-radius:8px;cursor:pointer;font-weight:650}button:disabled{opacity:.5}#report{font:13px/1.9 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}#status{font-weight:700;margin:20px 0;color:#164b87}.note{background:#fff8e7;padding:12px;border-radius:8px;line-height:1.7}</style></head><body><main class="card"><h2 id="title">MRM Next · P1-07 同源双标签安全验收</h2><p id="description" class="note">此页面仅使用随机命名的合成测试存储和独立 IndexedDB。自动开启第二标签，验证五个异步暂停点及一个正常对照。测试代码中的 useCloudCopy() 与 P1 已发布源码一致。<b>不调用 GitHub、不使用真实 65LA、不读取你的密码或 Token。</b> 本验收不等于正式生产切换授权。</p><button id="start">运行全部 6 项真实双标签测试</button> <button id="download" hidden>下载脱敏测试证据 JSON</button><div id="status">尚未运行</div><div id="report"></div></main><script>(()=>{
+'use strict';
+const $=id=>document.getElementById(id),query=new URL(location.href).searchParams,peer=query.get('role')==='peer',nonce=query.get('id')||'';
+const CH='mrm-p107-qa-tab-20261026',channel=new BroadcastChannel(CH);
+const show=(s)=>{$('status').textContent=s},line=(s)=>{const p=document.createElement('div');p.textContent=s;$('report').append(p)};
+if(peer){
+ $('title').textContent='P1-07 · 合成测试第二标签';
+ $('description').textContent='此标签只更新专用 QA 开关，不读取项目、GitHub 凭据或财务信息。完成后自动关闭。';
+ $('start').hidden=true;$('download').hidden=true;
+ channel.onmessage=e=>{const v=e.data||{};if(v.id!==nonce)return;
+  if(v.t==='ping')channel.postMessage({t:'ready',id:nonce,origin:location.origin});
+  if(v.t==='disable'){
+   localStorage.setItem('mrm-p107-qa:'+nonce+':settings',JSON.stringify({enabled:false}));
+   channel.postMessage({t:'disabled',id:nonce,caseId:v.caseId,origin:location.origin});
+  }
+  if(v.t==='close'){channel.close();window.close()}
+ };
+ channel.postMessage({t:'ready',id:nonce,origin:location.origin});
+ return;
+}
+function once(type,id,n,timeout=8500){return new Promise((resolve,reject)=>{
+ const timer=setTimeout(()=>{channel.removeEventListener('message',fn);reject(Error('second tab timeout: '+type))},timeout);
+ const fn=e=>{const x=e.data||{};if(x.t===type&&x.id===id&&(n==null||n===x.caseId)){
+  clearTimeout(timer);channel.removeEventListener('message',fn);resolve(x)
+ }};
+ channel.addEventListener('message',fn)
+})}
+function waitFor(f,limit=8000){return new Promise((resolve,reject)=>{
+ const started=Date.now(),timer=setInterval(()=>{if(f()){clearInterval(timer);resolve()}
+ else if(Date.now()-started>limit){clearInterval(timer);reject(Error('async pause timeout'))}},20)
+})}
+const stamp=()=>new Date().toISOString(),sha='9ec98b8e3107dcb47554f4212a2ddb2eb89883950130974b8d03f71bd05244c6';
+$('start').onclick=async()=>{
+ $('start').disabled=true;$('report').replaceChildren();show('正在启动两个同源标签页…');
+ const id=crypto.randomUUID(),url=new URL(location.href);url.searchParams.set('role','peer');url.searchParams.set('id',id);
+ const other=window.open(url.href,'_blank');if(!other){show('HOLD：第二标签页被浏览器拦截，请允许弹出窗口');$('start').disabled=false;return}
+ const prefix='mrm-p107-qa:'+id+':',PID='p107-syn-'+id.slice(0,8),PROJ=prefix+'project:',
+  setting=prefix+'settings',indexKey=prefix+'index',journalKey=prefix+'journal';
+ const local=()=>({project:{name:'SYNTH-LOCAL'},budget:[{id:'one',paidAmt:1.11}],finance:{payments:[],audit:[]}}),
+ cloud=()=>({project:{name:'SYNTH-CLOUD'},budget:[{id:'one',paidAmt:2.22}],finance:{payments:[],audit:[]}});
+ const enabled=()=>JSON.parse(localStorage.getItem(setting)||'{}').enabled===true;
+ const ls={get:k=>localStorage.getItem(k)},getAllProjects=()=>JSON.parse(localStorage.getItem(indexKey)||'[]');
+ const saveAllProjects=x=>localStorage.setItem(indexKey,JSON.stringify(x)),nowIso=stamp;
+ let current=PID,state=local(),step=0,stopAt=0,held=null,backups=0,rendered=0,scheduled=0,storageSeen=false;
+ const onStorage=e=>{if(e.key===setting){try{if(JSON.parse(e.newValue||'{}').enabled===false)storageSeen=true}catch{}}};
+ window.addEventListener('storage',onStorage);
+ let db=null, results=[],outcome='HOLD',problem=null;
+ try{
+  const ready=once('ready',id),timer=setInterval(()=>channel.postMessage({t:'ping',id}),100);
+  const peerReady=await ready;clearInterval(timer);
+  if(peerReady.origin!==location.origin)throw Error('second tab origin mismatch');
+  const req=indexedDB.open('mrm-p107-qa-real-idb',1);
+  db=await new Promise((resolve,reject)=>{req.onupgradeneeded=()=>req.result.createObjectStore('kv');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});
+  const idbSet=(key,value)=>new Promise((resolve,reject)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(value,prefix+key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+  const gate=name=>{step++;if(step===stopAt)return new Promise(resolve=>{held={resolve,name,step}});return Promise.resolve()};
+  const store={set:async(key,value)=>{await idbSet(key,value);await gate('indexeddb:'+key)}};
+  const engineFor=()=>({key:'p107-synthetic-key',sync:async()=>gate('synthetic-network-sync'),appDoc:async()=>{await gate('synthetic-cloud-document');return cloud()}});
+  const download=()=>{backups++},writeJournal=(pid,doc)=>localStorage.setItem(journalKey,JSON.stringify({project:doc.project.name,cents:Math.round((doc.budget?.[0]?.paidAmt||0)*100)}));
+  const appGlobals=()=>({current}),loadProject=()=>{state=JSON.parse(localStorage.getItem(PROJ+PID));return true};
+  const updateProjectSelector=()=>{},renderAll=()=>{},render=()=>{rendered++},scheduleSync=()=>{scheduled++},showToast=()=>{};
+  let _finOpenPending=false;
+    async function useCloudCopy(pid) { // onboarding: the cloud already had this project; P1-07 scoped asynchronous guard
+    if (!enabled()) return;
+    const e = engineFor(pid);
+    download({ kind: 'MRM_V4_ONBOARDING_LOCAL_COPY', projectId: pid, createdAt: nowIso(), local: ls.get(PROJ + pid) }, 'BEFORE_USING_CLOUD_COPY');
+    await store.set(e.key, null);
+    if (!enabled()) return; // P1-07: no further cloud adoption after cross-tab disable
+    await store.set('s5:view:' + pid, JSON.stringify({}));
+    if (!enabled()) return;
+    await e.sync();
+    if (!enabled()) return;
+    const doc = await e.appDoc();
+    if (!enabled()) { showToast('GitHub backup was turned off on this device meanwhile. Nothing was changed.', 'bg-amber-600'); return; }
+    const out = JSON.stringify(doc); // P1-07: all app-local state changes happen in one synchronous turn BEFORE the final IDB await
+    localStorage.setItem(PROJ + pid, out);
+    try { // P1-07: project selector metadata must match the copy that the user chose
+      const list = getAllProjects(); const i = list.findIndex(x => x.id === pid);
+      const meta = { id: pid, name: (doc.project && doc.project.name) || pid, address: (doc.project && doc.project.address) || '', updated: nowIso() };
+      if (i >= 0) list[i] = { ...list[i], name: meta.name, address: meta.address }; else list.push(meta);
+      saveAllProjects(list);
+    } catch (err) { console.error('S5: project list not updated'); }
+    writeJournal(pid, doc); // P1-07: ensure journal is written even if this is not the open project
+    if (appGlobals().current === pid && loadProject(pid)) {
+      try { _finOpenPending = false; } catch {}
+      writeJournal(pid, state);
+      try { updateProjectSelector(); renderAll(); } catch (err) { console.error(err); }
+    } else { try { updateProjectSelector(); } catch {} }
+    await store.set('s5:view:' + pid, out);
+    if (!enabled()) return; // P1-07: no rendering or scheduling after another tab disabled backup
+    render(); scheduleSync(300);
+  }
+
+  async function runCase(n){
+   step=0;stopAt=n===6?0:n;held=null;backups=0;rendered=0;scheduled=0;storageSeen=false;
+   localStorage.setItem(setting,JSON.stringify({enabled:true}));
+   localStorage.setItem(PROJ+PID,JSON.stringify(local()));
+   localStorage.setItem(indexKey,JSON.stringify([{id:PID,name:'SYNTH-LOCAL'}]));writeJournal(PID,local());
+   const task=useCloudCopy(PID);
+   if(n<=5){
+    await waitFor(()=>held?.step===n);
+    const ack=once('disabled',id,n);channel.postMessage({t:'disable',id,caseId:n});
+    const a=await ack;
+    await waitFor(()=>storageSeen);
+    if(a.origin!==location.origin||enabled())throw Error('cross-tab disable not observed');
+    held.resolve();held=null;
+   }
+   await task;
+   const project=JSON.parse(localStorage.getItem(PROJ+PID)),metadata=getAllProjects()[0],journal=JSON.parse(localStorage.getItem(journalKey));
+   const expected=n<=4?'SYNTH-LOCAL':'SYNTH-CLOUD';
+   const okay=project.project.name===expected&&metadata.name===expected&&journal.project===expected&&journal.cents===(n<=4?111:222)&&
+   backups===1&&rendered===(n===6?1:0)&&scheduled===(n===6?1:0)&&enabled()===(n===6)&&(n===6||storageSeen);
+   return {case:n,result:okay?'PASS':'FAIL',app:project.project.name,index:metadata.name,journal:journal.project,
+     journalCents:journal.cents,postDisableSyncScheduled:scheduled,postDisableRender:rendered,crossTabStorageEvent:n<=5?storageSeen:null};
+  }
+  for(let n=1;n<=6;n++){show('正在执行 '+n+'/6：真实双标签＋合成数据');const r=await runCase(n);results.push(r);
+   line(r.result+' · Case '+n+' · app/index/journal='+r.app+'/'+r.index+'/'+r.journal+' · sync='+r.postDisableSyncScheduled);
+  }
+  outcome=results.every(x=>x.result==='PASS')?'PASS':'HOLD';
+  show(outcome==='PASS'?'6/6 PASS：真实同源双标签，合成数据':'HOLD：至少一项测试失败');
+ }catch(e){problem=String(e?.message||e);show('HOLD：'+problem);line('ERROR '+problem)}
+ finally{
+  const evidence={type:'MRM P1-07 real same-origin dual-tab synthetic race',outcome,total:6,passed:results.filter(x=>x.result==='PASS').length,
+   timestamp:stamp(),origin:location.origin,userAgent:navigator.userAgent,p1IndexBlobSha:'04bbf14304d4ef67a7ce6647d65cf81980b5b25f',
+   extractedUseCloudCopySHA256:sha,source:'P1 index.html exact useCloudCopy function',
+   storage:'two genuine browser tabs, shared localStorage, native IndexedDB, BroadcastChannel and storage events',
+   data:'dedicated mrm-p107-qa nonce namespace and separate IndexedDB; synthetic values only',
+   network:'mocked; no GitHub or Cloudflare Worker requests',limitations:'Does not verify real GitHub network or whole-app onboarding. Production switch requires separate authorization.',
+   issue:problem,cases:results};
+  $('download').hidden=false;$('download').onclick=()=>{const blob=new Blob([JSON.stringify(evidence,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='MRM_P1_07_REAL_TWO_TABS_SYNTHETIC_RESULT.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+  channel.postMessage({t:'close',id});try{other.close()}catch{}
+  for(const k of [setting,PROJ+PID,indexKey,journalKey])localStorage.removeItem(k);
+  window.removeEventListener('storage',onStorage);
+  if(db){db.close();indexedDB.deleteDatabase('mrm-p107-qa-real-idb')}
+  $('start').disabled=false;
+ }
+};
+})();</script></body></html>
